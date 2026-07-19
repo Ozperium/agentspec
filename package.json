@@ -1,5 +1,5 @@
 {
-  "name": "agentspec",
+  "name": "@ozperium/agentspec",
   "version": "0.1.0",
   "description": "Testing framework for AI agents — Jest for non-deterministic AI behavior",
   "main": "dist/index.js",
@@ -12,6 +12,9 @@
     "dev": "tsc --watch",
     "test": "node dist/cli.js run --dir tests --ci && node dist/cli.js run --dir examples --ci",
     "prepublishOnly": "tsc"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "keywords": [
     "ai",

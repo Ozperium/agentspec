@@ -2,12 +2,15 @@
 
 > Testing framework for AI agents — Jest for non-deterministic AI behavior
 
+[![npm version](https://img.shields.io/npm/v/@ozperium/agentspec)](https://www.npmjs.com/package/@ozperium/agentspec)
+[![GitHub](https://img.shields.io/github/stars/Ozperium/agentspec)](https://github.com/Ozperium/agentspec)
+
 AI agents are non-deterministic. When you change a prompt, swap a model, or update a tool, behavior shifts in ways you can't predict. AgentSpec lets you write tests that catch those shifts before they reach production.
 
 ## Quick start
 
 ```bash
-npm install -g agentspec
+npm install -g @ozperium/agentspec
 agentspec init
 ```
 
