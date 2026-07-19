@@ -120,7 +120,7 @@ There's also a GitHub Action:
 ## Get started
 
 ```bash
-npm install -g agentspec
+npm install -g @ozperium/agentspec
 agentspec init
 agentspec run
 ```
