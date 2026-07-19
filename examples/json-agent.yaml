@@ -1,0 +1,27 @@
+name: "json output agent"
+description: "Tests for an agent that returns structured JSON"
+
+tests:
+  - name: "returns valid JSON with email field"
+    input: "get user profile for user 123"
+    expect:
+      json_path: "data.email"
+      contains: "@"
+
+  - name: "returns user id as number"
+    input: "get user profile for user 123"
+    expect:
+      json_path: "data.id"
+      json_value: 123
+
+  - name: "error response has message"
+    input: "get user profile for user 99999"
+    expect:
+      json_path: "error.message"
+      contains_any: ["not found", "missing", "does not exist"]
+
+  - name: "response includes timestamp"
+    input: "get user profile for user 123"
+    expect:
+      json_path: "meta.timestamp"
+      regex: "\\d{4}-\\d{2}-\\d{2}"

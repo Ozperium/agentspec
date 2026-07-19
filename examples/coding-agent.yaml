@@ -1,0 +1,36 @@
+name: "coding agent tests"
+description: "Tests for an AI coding assistant"
+
+tests:
+  - name: "generates valid Python"
+    input: "write a function that returns the fibonacci sequence"
+    expect:
+      contains: "def"
+      regex: "def \\w+\\("
+      not_contains: "I cannot help"
+
+  - name: "explains the code"
+    input: "what does map() do in JavaScript?"
+    expect:
+      contains: "map"
+      contains_any: ["array", "function", "callback"]
+      semantically_similar: "applies a function to each element"
+      min_confidence: 0.3
+
+  - name: "handles error messages"
+    input: "I'm getting a null pointer exception"
+    expect:
+      contains_any: ["null", "pointer", "exception", "check"]
+      not_contains: "I don't know"
+
+  - name: "suggests best practices"
+    input: "how should I structure my React components?"
+    expect:
+      contains_any: ["component", "props", "state", "hooks"]
+      contains: "component"
+
+  - name: "response is fast enough"
+    input: "explain what a closure is"
+    expect:
+      contains: "closure"
+      max_latency_ms: 10000
