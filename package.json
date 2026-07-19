@@ -1,0 +1,54 @@
+{
+  "name": "agentspec",
+  "version": "0.1.0",
+  "description": "Testing framework for AI agents — Jest for non-deterministic AI behavior",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "agentspec": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node dist/cli.js run --dir tests --ci && node dist/cli.js run --dir examples --ci",
+    "prepublishOnly": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "testing",
+    "regression",
+    "llm",
+    "jest",
+    "framework",
+    "automation",
+    "ci",
+    "non-deterministic"
+  ],
+  "author": "Ozperium",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ozperium/agentspec.git"
+  },
+  "homepage": "https://agentspec.dev",
+  "bugs": {
+    "url": "https://github.com/Ozperium/agentspec/issues"
+  },
+  "files": [
+    "dist/",
+    "action.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

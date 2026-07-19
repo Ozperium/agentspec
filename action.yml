@@ -1,0 +1,32 @@
+name: 'AgentSpec — AI Agent Tests'
+description: 'Run AgentSpec tests for your AI agents in CI'
+branding:
+  icon: 'check-circle'
+  color: 'blue'
+inputs:
+  test-dir:
+    description: 'Directory containing test suites'
+    required: false
+    default: 'tests'
+  format:
+    description: 'Output format (text, json, junit)'
+    required: false
+    default: 'junit'
+  fail-on-failure:
+    description: 'Exit with error code on test failures'
+    required: false
+    default: 'true'
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install AgentSpec
+      shell: bash
+      run: npm install -g agentspec
+    - name: Run AgentSpec tests
+      shell: bash
+      run: agentspec run --dir ${{ inputs.test-dir }} ${{ inputs.format == 'junit' && '--junit' || '' }} ${{ inputs.format == 'json' && '--json' || '' }} --ci
+      continue-on-error: ${{ inputs.fail-on-failure != 'true' }}

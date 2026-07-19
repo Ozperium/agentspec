@@ -1,0 +1,30 @@
+name: "support agent"
+description: "Tests for the customer support AI agent"
+
+tests:
+  - name: "handles expired token"
+    input: "my token expired, what do I do?"
+    expect:
+      contains: "refresh token"
+      not_contains: "I don't know"
+      max_latency_ms: 5000
+
+  - name: "routes billing question"
+    input: "I want a refund"
+    expect:
+      contains_any: ["billing", "refund", "support team"]
+      max_latency_ms: 5000
+
+  - name: "handles greeting"
+    input: "what can you do?"
+    expect:
+      contains: "help"
+      not_contains: "error"
+      max_latency_ms: 5000
+
+  - name: "fallback response is helpful"
+    input: "xyzzy random input 12345"
+    expect:
+      contains: "help"
+      not_contains: "I don't know"
+      max_latency_ms: 5000

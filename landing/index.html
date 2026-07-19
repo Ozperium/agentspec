@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgentSpec — Testing framework for AI agents</title>
+  <meta name="description" content="Jest for AI agents. Write tests, catch behavior regressions, ship with confidence.">
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #14141f;
+      --border: #2a2a3a;
+      --text: #e4e4ef;
+      --muted: #8a8aa0;
+      --accent: #7c5cff;
+      --accent-dim: #5a3fd0;
+      --green: #4ade80;
+      --red: #f87171;
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", monospace;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    .container { max-width: 880px; margin: 0 auto; padding: 0 24px; }
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo { font-weight: 700; font-size: 18px; color: var(--accent); }
+    .nav-links a { color: var(--muted); text-decoration: none; margin-left: 24px; font-size: 14px; }
+    .nav-links a:hover { color: var(--text); }
+    .hero { padding: 80px 0 60px; text-align: center; }
+    .hero h1 { font-size: 42px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.5px; }
+    .hero h1 .gradient {
+      background: linear-gradient(135deg, var(--accent), #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p { font-size: 18px; color: var(--muted); margin-bottom: 32px; max-width: 560px; margin-left: auto; margin-right: auto; }
+    .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: transform 0.1s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary { background: var(--accent); color: white; }
+    .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+    .section { padding: 60px 0; border-top: 1px solid var(--border); }
+    .section h2 { font-size: 28px; margin-bottom: 32px; text-align: center; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+    .feature { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .feature h3 { font-size: 16px; margin-bottom: 8px; color: var(--accent); }
+    .feature p { color: var(--muted); font-size: 14px; }
+    .code-block { background: #0d0d15; border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; margin: 24px 0; }
+    .code-block pre { font-family: var(--mono); font-size: 13px; line-height: 1.7; color: var(--text); }
+    .code-block .comment { color: var(--muted); }
+    .code-block .key { color: #c084fc; }
+    .code-block .str { color: var(--green); }
+    .code-block .kw { color: var(--accent); }
+    .terminal { background: #0d0d15; border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; font-family: var(--mono); font-size: 13px; line-height: 1.8; }
+    .terminal .pass { color: var(--green); }
+    .terminal .fail { color: var(--red); }
+    .terminal .muted { color: var(--muted); }
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 32px 0; }
+    .compare-col { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .compare-col h3 { font-size: 14px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+    @media (max-width: 640px) { .compare { grid-template-columns: 1fr; } .hero h1 { font-size: 32px; } }
+    footer { padding: 40px 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 14px; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav>
+      <div class="logo">AgentSpec</div>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="https://github.com/Ozperium/agentspec">GitHub</a>
+        <a href="https://www.npmjs.com/package/agentspec">npm</a>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <h1>Tests for <span class="gradient">AI agents</span> that actually work</h1>
+      <p>AgentSpec is a testing framework for non-deterministic AI behavior. Write tests in YAML, catch regressions before they ship, and see exactly what changed.</p>
+      <div class="cta">
+        <a href="https://github.com/Ozperium/agentspec" class="btn btn-primary">Get Started →</a>
+        <a href="#features" class="btn btn-secondary">Features</a>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <h2>Assertions designed for AI output</h2>
+      <div class="features">
+        <div class="feature">
+          <h3>Non-deterministic matching</h3>
+          <p>contains_any, contains_all, regex — assertions that handle the variability of AI responses without flaky tests.</p>
+        </div>
+        <div class="feature">
+          <h3>Behavior metadata</h3>
+          <p>Assert on tool_called, max_latency_ms, max_tokens — verify not just what the agent said, but what it did.</p>
+        </div>
+        <div class="feature">
+          <h3>Semantic similarity</h3>
+          <p>Check if responses are semantically on-topic, even when the exact words differ. No API calls needed.</p>
+        </div>
+        <div class="feature">
+          <h3>JSON path assertions</h3>
+          <p>Extract and verify specific fields from JSON agent outputs. Perfect for structured API responses.</p>
+        </div>
+        <div class="feature">
+          <h3>CI/CD native</h3>
+          <p>Exit codes, JUnit XML, JSON output. GitHub Action included. Drop into any CI pipeline.</p>
+        </div>
+        <div class="feature">
+          <h3>Local-first</h3>
+          <p>No cloud, no account, no telemetry. Tests run on your machine, in your CI, on your terms.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Write tests in YAML, not code</h2>
+      <div class="code-block">
+<pre><span class="comment"># agentspec.yaml</span>
+<span class="key">name</span>: <span class="str">"support agent"</span>
+<span class="key">tests</span>:
+  - <span class="key">name</span>: <span class="str">"handles expired token"</span>
+    <span class="key">input</span>: <span class="str">"my token expired"</span>
+    <span class="key">expect</span>:
+      <span class="key">contains</span>: <span class="str">"refresh token"</span>
+      <span class="key">not_contains</span>: <span class="str">"I don't know"</span>
+      <span class="key">max_latency_ms</span>: <span class="kw">5000</span>
+
+  - <span class="key">name</span>: <span class="str">"routes billing question"</span>
+    <span class="key">input</span>: <span class="str">"I want a refund"</span>
+    <span class="key">expect</span>:
+      <span class="key">contains_any</span>: [<span class="str">"billing"</span>, <span class="str">"refund"</span>, <span class="str">"support"</span>]
+      <span class="key">tool_called</span>: <span class="str">"transfer_to_billing"</span></pre>
+      </div>
+      <div class="terminal">
+<span class="muted">$</span> agentspec run
+<span class="muted">── AgentSpec ─ Test Results ──────────────</span>
+<span class="pass">✓</span> support agent > handles expired token (12ms)
+<span class="pass">✓</span> support agent > routes billing question (11ms)
+<span class="pass">✓</span> support agent > handles greeting (12ms)
+<span class="pass">✓</span> support agent > fallback is helpful (11ms)
+<span class="muted">── 4 passed, 0 failed (4 total) ──</span>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Why not just use Jest?</h2>
+      <div class="compare">
+        <div class="compare-col">
+          <h3>Jest / Vitest</h3>
+          <p>• Exact string matching</p>
+          <p>• No tool_called assertion</p>
+          <p>• No latency/token gates</p>
+          <p>• No semantic similarity</p>
+          <p>• No AI behavior diffs</p>
+          <p>• Built for deterministic code</p>
+        </div>
+        <div class="compare-col">
+          <h3>AgentSpec</h3>
+          <p>• Non-deterministic matching</p>
+          <p>• tool_called, max_latency_ms, max_tokens</p>
+          <p>• Semantic similarity built-in</p>
+          <p>• JSON path extraction</p>
+          <p>• Behavior diff reports (soon)</p>
+          <p>• Built for AI agents</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="text-align: center;">
+      <h2>Get started in 30 seconds</h2>
+      <div class="terminal" style="max-width: 480px; margin: 24px auto; text-align: left;">
+<span class="muted">$</span> npm install -g agentspec
+<span class="muted">$</span> agentspec init
+<span class="muted">  →</span> Created agentspec.yaml
+<span class="muted">$</span> agentspec run
+<span class="pass">  ✓</span> All tests passed
+      </div>
+      <div class="cta">
+        <a href="https://github.com/Ozperium/agentspec" class="btn btn-primary">GitHub →</a>
+        <a href="https://www.npmjs.com/package/agentspec" class="btn btn-secondary">npm</a>
+      </div>
+    </section>
+
+    <footer>
+      <p>MIT License · <a href="https://github.com/Ozperium/agentspec">GitHub</a> · Built by <a href="https://github.com/Ozperium">Ozperium</a></p>
+    </footer>
+  </div>
+</body>
+</html>
