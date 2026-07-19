@@ -4,6 +4,45 @@ import { findTestSuites } from './loader';
 import { formatResults, formatResultsJSON, formatResultsJUnit } from './reporter';
 import { saveRun, computeDiffs, formatDiffs } from './diff';
 import * as path from 'path';
+import * as fs from 'fs';
+
+async function runWithWatch(
+  dir: string,
+  agent: any,
+  testFilter: string | null,
+): Promise<void> {
+  // First run
+  await runTests(dir, agent, testFilter);
+
+  console.log('\n🔍 Watching for changes in %s… (press Ctrl+C to stop)\n', dir);
+
+  const testDir = path.resolve(dir);
+
+  fs.watch(testDir, (eventType, filename) => {
+    if (!filename) return;
+    const ext = path.extname(filename).toLowerCase();
+    if (ext === '.yaml' || ext === '.yml') {
+      console.log(`\n💥 Change detected: ${filename} — re-running tests…\n`);
+      runTests(dir, agent, testFilter);
+    }
+  });
+}
+
+async function runTests(
+  dir: string,
+  agent: any,
+  testFilter: string | null,
+): Promise<void> {
+  const result = await runAll(dir, agent, testFilter);
+
+  const diffs = computeDiffs(result.results);
+  saveRun(result.results);
+
+  console.log(formatResults(result));
+  if (diffs.length > 0) {
+    console.log(formatDiffs(diffs));
+  }
+}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -60,28 +99,40 @@ async function main() {
       });
     }
 
-    const result = await runAll(dir, agent, testFilter);
-
-    // Compute behavior diffs
-    const diffs = computeDiffs(result.results);
-
-    // Save current run for future diffs
-    saveRun(result.results);
-
-    if (json) {
-      console.log(formatResultsJSON(result));
-    } else if (junit) {
-      console.log(formatResultsJUnit(result));
-    } else {
-      console.log(formatResults(result));
-      // Show diff report if there are changes
-      if (diffs.length > 0) {
-        console.log(formatDiffs(diffs));
+    if (watch) {
+      // Watch mode: run once then watch for file changes
+      if (ci || json || junit) {
+        console.error(
+          '--ci, --json, and --junit are not supported with --watch',
+        );
+        process.exit(1);
       }
-    }
+      await runWithWatch(dir, agent, testFilter);
+    } else {
+      // Single-run mode (original behavior)
+      const result = await runAll(dir, agent, testFilter);
 
-    if (ci) {
-      process.exit(result.failed > 0 ? 1 : 0);
+      // Compute behavior diffs
+      const diffs = computeDiffs(result.results);
+
+      // Save current run for future diffs
+      saveRun(result.results);
+
+      if (json) {
+        console.log(formatResultsJSON(result));
+      } else if (junit) {
+        console.log(formatResultsJUnit(result));
+      } else {
+        console.log(formatResults(result));
+        // Show diff report if there are changes
+        if (diffs.length > 0) {
+          console.log(formatDiffs(diffs));
+        }
+      }
+
+      if (ci) {
+        process.exit(result.failed > 0 ? 1 : 0);
+      }
     }
   } else if (command === 'init') {
     console.log('Creating agentspec.yaml...');

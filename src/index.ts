@@ -2,6 +2,7 @@ export { runAll, runSuite, MockAgent } from './runner';
 export { AgentRunner, AgentOutput } from './runner';
 export { HTTPAgent, HTTPAgentConfig } from './http-agent';
 export { LangChainAgent, LangChainAgentConfig } from './langchain-agent';
+export { VercelAIAgent, VercelAIAgentConfig } from './vercel-agent';
 export { evaluateAssertions, evaluateAssertionsAsync, setLLMJudgeConfig, getLLMJudgeConfig } from './assertions';
 export { llmJudge, LLMJudgeConfig } from './llm-judge';
 export { loadTestSuite, findTestSuites } from './loader';
