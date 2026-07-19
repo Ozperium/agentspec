@@ -1,6 +1,6 @@
 import { TestResult, RunResult, TestSuite } from './types';
 export { TestSuite } from './types';
-import { evaluateAssertions } from './assertions';
+import { evaluateAssertions, evaluateAssertionsAsync } from './assertions';
 import { loadTestSuite, findTestSuites } from './loader';
 import * as path from 'path';
 
@@ -27,11 +27,18 @@ export async function runSuite(
     try {
       const output = await agent.run(test.input, suite);
       const durationMs = Date.now() - startTime;
-      const assertions = evaluateAssertions(output.text, test.expect, {
-        tokens: output.tokens,
-        latencyMs: durationMs,
-        toolsCalled: output.toolsCalled,
-      });
+      const hasLLMJudge = test.expect.llm_judge !== undefined;
+      const assertions = hasLLMJudge
+        ? await evaluateAssertionsAsync(output.text, test.expect, test.input, {
+            tokens: output.tokens,
+            latencyMs: durationMs,
+            toolsCalled: output.toolsCalled,
+          })
+        : evaluateAssertions(output.text, test.expect, {
+            tokens: output.tokens,
+            latencyMs: durationMs,
+            toolsCalled: output.toolsCalled,
+          });
       const passed = assertions.every(a => a.passed);
       results.push({
         test: test.name,

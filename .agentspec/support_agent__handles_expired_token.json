@@ -1,0 +1,7 @@
+{
+  "test": "handles expired token",
+  "suite": "support agent",
+  "passed": true,
+  "output": "You need to refresh the token. Go to Settings > Security to get a new refresh token.",
+  "timestamp": "2026-07-19T16:01:05.532Z"
+}

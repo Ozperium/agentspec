@@ -1,0 +1,21 @@
+name: "llm judge tests"
+description: "Tests for the llm_judge assertion (requires local Ollama or OpenAI-compatible endpoint)"
+
+tests:
+  - name: "judge detects helpful response"
+    input: "How do I reset my password?"
+    expect:
+      llm_judge: "The response should explain how to reset a password"
+      contains: "password"
+
+  - name: "judge detects unhelpful response"
+    input: "I need help with billing"
+    expect:
+      llm_judge: "The response should address billing concerns"
+      not_contains: "I don't know"
+
+  - name: "judge evaluates tone"
+    input: "I'm frustrated with this product"
+    expect:
+      llm_judge: "The response should be empathetic and acknowledge frustration"
+      contains_any: ["sorry", "understand", "frustrated", "help"]

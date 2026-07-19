@@ -65,6 +65,44 @@ tests:
       regex: "ERR-\\d{5}"
 ```
 
+## LLM-as-judge
+
+Use a local model to evaluate response quality — no API costs, full privacy:
+
+```bash
+# Use local Ollama as judge
+agentspec run --judge-endpoint http://127.0.0.1:11434/v1/chat/completions --judge-model qwen2.5:7b
+```
+
+```yaml
+tests:
+  - name: "response is helpful"
+    input: "How do I reset my password?"
+    expect:
+      llm_judge: "The response should explain how to reset a password"
+```
+
+## Behavior diff reports
+
+AgentSpec stores the last passing output per test. When behavior changes, you see exactly what shifted:
+
+```
+⚠️ REGRESSION support agent > handles expired token
+  ⚠  Behavior REGRESSED — test was passing, now failing
+  + added: your, token, has, expired, please, contact, support
+  - removed: you, need, refresh, the, token, settings, security
+```
+
+## Testing real agents
+
+Use `--endpoint` to test any HTTP-accessible agent:
+
+```bash
+agentspec run --endpoint https://my-agent.example.com/chat
+```
+
+AgentSpec POSTs `{input: "..."}` to your endpoint and expects `{output: "..."}` in the response.
+
 ## CI/CD integration
 
 ```bash
@@ -118,12 +156,14 @@ agentspec version
 - [x] JUnit XML and JSON output
 - [x] Test filtering
 - [x] GitHub Action
-- [ ] Diff report (show what changed between passing and failing runs)
-- [ ] LLM-as-judge assertion (local model support)
+- [x] **Behavior diff reports** — see what changed between runs
+- [x] **LLM-as-judge** — use a local model (Ollama) to evaluate output quality
+- [x] **HTTP agent adapter** — test real agents via `--endpoint`
 - [ ] Auto-test generation from conversation history
 - [ ] Python agent support
 - [ ] Watch mode with file watcher
 - [ ] Web dashboard
+- [ ] GitHub PR integration (comment on PRs with behavior diffs)
 
 ## License
 

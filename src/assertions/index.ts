@@ -1,4 +1,16 @@
 import { TestExpect, AssertionResult } from '../types';
+import { llmJudge, LLMJudgeConfig } from '../llm-judge';
+
+// Global LLM judge config (can be set via CLI or env)
+let globalLLMJudgeConfig: LLMJudgeConfig | undefined;
+
+export function setLLMJudgeConfig(config: LLMJudgeConfig | undefined) {
+  globalLLMJudgeConfig = config;
+}
+
+export function getLLMJudgeConfig(): LLMJudgeConfig | undefined {
+  return globalLLMJudgeConfig;
+}
 
 export function evaluateAssertions(
   output: string,
@@ -6,6 +18,8 @@ export function evaluateAssertions(
   metadata?: { tokens?: number; latencyMs?: number; toolsCalled?: string[] }
 ): AssertionResult[] {
   const results: AssertionResult[] = [];
+
+  // Synchronous assertions only — llm_judge handled separately in evaluateAssertionsAsync
 
   if (expect.contains !== undefined) {
     const passed = output.includes(expect.contains);
@@ -155,6 +169,41 @@ export function evaluateAssertions(
       expected: `≥ ${threshold} similarity to "${expect.semantically_similar}"`,
       actual: similarity.toFixed(2),
     });
+  }
+
+  return results;
+}
+
+// Async version that supports llm_judge assertion
+export async function evaluateAssertionsAsync(
+  output: string,
+  expect: TestExpect,
+  input: string,
+  metadata?: { tokens?: number; latencyMs?: number; toolsCalled?: string[] }
+): Promise<AssertionResult[]> {
+  const results = evaluateAssertions(output, expect, metadata);
+
+  if (expect.llm_judge !== undefined) {
+    try {
+      const judgeResult = await llmJudge(input, output, expect.llm_judge, globalLLMJudgeConfig);
+      results.push({
+        assertion: 'llm_judge',
+        passed: judgeResult.passed,
+        message: judgeResult.passed
+          ? `LLM judge passed (score: ${judgeResult.score.toFixed(2)}): ${judgeResult.reasoning}`
+          : `LLM judge failed (score: ${judgeResult.score.toFixed(2)}): ${judgeResult.reasoning}`,
+        expected: expect.llm_judge,
+        actual: `score: ${judgeResult.score.toFixed(2)}`,
+      });
+    } catch (e) {
+      results.push({
+        assertion: 'llm_judge',
+        passed: false,
+        message: `LLM judge error: ${e instanceof Error ? e.message : String(e)}`,
+        expected: expect.llm_judge,
+        actual: 'error',
+      });
+    }
   }
 
   return results;

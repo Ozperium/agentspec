@@ -1,0 +1,21 @@
+name: "diff report tests"
+description: "Tests for the behavior diff report feature"
+
+tests:
+  - name: "diff detects output change"
+    input: "the quick brown fox jumps"
+    expect:
+      contains: "quick"
+      contains_all: ["quick", "brown", "fox"]
+
+  - name: "diff detects regression"
+    input: "Success: operation completed"
+    expect:
+      not_contains: "error"
+      contains: "success"
+
+  - name: "diff detects improvement"
+    input: "The answer is 42"
+    expect:
+      contains: "42"
+      regex: "\\d+"

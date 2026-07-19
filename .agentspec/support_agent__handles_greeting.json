@@ -1,0 +1,7 @@
+{
+  "test": "handles greeting",
+  "suite": "support agent",
+  "passed": true,
+  "output": "I can help with auth, billing, and general support questions.",
+  "timestamp": "2026-07-19T16:01:05.532Z"
+}

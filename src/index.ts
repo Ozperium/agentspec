@@ -1,6 +1,10 @@
 export { runAll, runSuite, MockAgent } from './runner';
 export { AgentRunner, AgentOutput } from './runner';
-export { evaluateAssertions } from './assertions';
+export { HTTPAgent, HTTPAgentConfig } from './http-agent';
+export { evaluateAssertions, evaluateAssertionsAsync, setLLMJudgeConfig, getLLMJudgeConfig } from './assertions';
+export { llmJudge, LLMJudgeConfig } from './llm-judge';
 export { loadTestSuite, findTestSuites } from './loader';
 export { formatResults, formatResultsJSON, formatResultsJUnit } from './reporter';
+export { saveRun, computeDiffs, formatDiffs } from './diff';
 export * from './types';
+export * from './types/diff';

@@ -2,6 +2,7 @@
 import { runAll, runSuite, MockAgent, AgentRunner, AgentOutput, TestSuite } from './runner';
 import { findTestSuites } from './loader';
 import { formatResults, formatResultsJSON, formatResultsJUnit } from './reporter';
+import { saveRun, computeDiffs, formatDiffs } from './diff';
 import * as path from 'path';
 
 async function main() {
@@ -15,6 +16,9 @@ async function main() {
     let junit = false;
     let watch = false;
     let testFilter: string | null = null;
+    let judgeEndpoint: string | null = null;
+    let judgeModel: string | null = null;
+    let agentEndpoint: string | null = null;
 
     for (let i = 1; i < args.length; i++) {
       const arg = args[i];
@@ -24,25 +28,45 @@ async function main() {
       else if (arg === '--junit') junit = true;
       else if (arg === '--watch') watch = true;
       else if (arg === '--test') testFilter = args[++i];
+      else if (arg === '--judge-endpoint') judgeEndpoint = args[++i];
+      else if (arg === '--judge-model') judgeModel = args[++i];
+      else if (arg === '--endpoint') agentEndpoint = args[++i];
       else if (arg === '--help' || arg === '-h') {
         printHelp();
         return;
       }
     }
 
-    // Use echo mock for self-tests, response mock for examples
+    // Use HTTP agent if endpoint specified, otherwise mock
     const isSelfTest = dir === 'tests';
-    const agent = isSelfTest
-      ? new MockAgent({}, true) // echo mode — returns input as output
-      : new MockAgent({
-          default: "I'll help you with that. Let me check the system for you.",
-          "my token expired, what do I do?": "You need to refresh the token. Go to Settings > Security to get a new refresh token.",
-          "I want a refund": "I'll transfer you to the billing team. Let me connect you with our support team.",
-          "what can you do?": "I can help with auth, billing, and general support questions.",
-          "xyzzy random input 12345": "I'm not sure about that, but I can help you find what you need.",
-        });
+    const agent = agentEndpoint
+      ? new (require('./http-agent').HTTPAgent)({ endpoint: agentEndpoint })
+      : isSelfTest
+        ? new MockAgent({}, true)
+        : new MockAgent({
+            default: "I'll help you with that. Let me check the system for you.",
+            "my token expired, what do I do?": "You need to refresh the token. Go to Settings > Security to get a new refresh token.",
+            "I want a refund": "I'll transfer you to the billing team. Let me connect you with our support team.",
+            "what can you do?": "I can help with auth, billing, and general support questions.",
+            "xyzzy random input 12345": "I'm not sure about that, but I can help you find what you need.",
+          });
+
+    // Configure LLM judge if specified (must be before running tests)
+    if (judgeEndpoint || judgeModel) {
+      const { setLLMJudgeConfig } = await import('./assertions');
+      setLLMJudgeConfig({
+        endpoint: judgeEndpoint || undefined,
+        model: judgeModel || undefined,
+      });
+    }
 
     const result = await runAll(dir, agent, testFilter);
+
+    // Compute behavior diffs
+    const diffs = computeDiffs(result.results);
+
+    // Save current run for future diffs
+    saveRun(result.results);
 
     if (json) {
       console.log(formatResultsJSON(result));
@@ -50,6 +74,10 @@ async function main() {
       console.log(formatResultsJUnit(result));
     } else {
       console.log(formatResults(result));
+      // Show diff report if there are changes
+      if (diffs.length > 0) {
+        console.log(formatDiffs(diffs));
+      }
     }
 
     if (ci) {
@@ -100,12 +128,14 @@ Usage:
   agentspec version           Show version
 
 Options for run:
-  --dir <path>      Test directory (default: tests)
-  --ci              Exit with code 1 on failure
-  --json            Output results as JSON
-  --junit           Output JUnit XML
-  --watch           Watch for changes and re-run
-  --test <pattern>  Run only matching tests
+  --dir <path>          Test directory (default: tests)
+  --ci                  Exit with code 1 on failure
+  --json                Output results as JSON
+  --junit               Output JUnit XML
+  --watch               Watch for changes and re-run
+  --test <pattern>      Run only matching tests
+  --judge-endpoint <url>  LLM judge endpoint (OpenAI-compatible, default: Ollama)
+  --judge-model <name>    LLM judge model name (default: local small model)
 `);
 }
 

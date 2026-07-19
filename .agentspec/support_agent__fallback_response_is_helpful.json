@@ -1,0 +1,7 @@
+{
+  "test": "fallback response is helpful",
+  "suite": "support agent",
+  "passed": true,
+  "output": "I'm not sure about that, but I can help you find what you need.",
+  "timestamp": "2026-07-19T16:01:05.532Z"
+}

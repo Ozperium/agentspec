@@ -1,0 +1,7 @@
+{
+  "test": "routes billing question",
+  "suite": "support agent",
+  "passed": true,
+  "output": "I'll transfer you to the billing team. Let me connect you with our support team.",
+  "timestamp": "2026-07-19T16:01:05.532Z"
+}
