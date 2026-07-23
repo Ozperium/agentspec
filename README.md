@@ -168,6 +168,16 @@ agentspec version
 - [ ] Web dashboard
 - [ ] GitHub PR integration (comment on PRs with behavior diffs)
 
+## Part of the AI Dev Workflow Stack
+
+AgentSpec is one tool in a three-part observability stack for AI development:
+
+| Tool | What it does | Install |
+|------|-------------|---------|
+| **AgentSpec** | Test AI agent behavior — catch regressions before production | `npm i -g @ozperium/agentspec` |
+| **[AICostTracker](https://github.com/Ozperium/aicost-tracker)** | Track token usage and costs across projects | `npm i -g @ozperium/aicost-tracker` |
+| **[quota](https://github.com/Ozperium/quota)** | Monitor AI rate limits — know what's left before it stops you | `npm i -g @ozperium/quota` |
+
 ## License
 
 MIT
