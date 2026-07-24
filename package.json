@@ -1,6 +1,6 @@
 {
   "name": "@ozperium/agentspec",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Testing framework for AI agents — Jest for non-deterministic AI behavior",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -26,7 +26,17 @@
     "framework",
     "automation",
     "ci",
-    "non-deterministic"
+    "non-deterministic",
+    "behavioral-testing",
+    "prompt-testing",
+    "evaluation",
+    "eval",
+    "ai-testing",
+    "langchain",
+    "openai",
+    "anthropic",
+    "claude",
+    "gpt"
   ],
   "author": "Ozperium",
   "license": "MIT",
