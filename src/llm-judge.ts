@@ -40,17 +40,12 @@ Respond with ONLY a JSON object:
       { role: 'user', content: `Evaluate: does the response meet the criteria?` }
     ],
     temperature: 0.1,
-    // Reasoning models spend thinking tokens before emitting the JSON; a small
-    // budget truncates the response below the JSON body. Give the judge headroom.
-    max_tokens: 1500,
+    max_tokens: 200,
   });
 
   try {
     const response = await httpRequest(endpoint, body, apiKey, timeout);
-    // Reasoning models (e.g. Qwen3) return the JSON in `reasoning` with an empty
-    // `content` when max_tokens is exhausted by thinking. Fall back to reasoning.
-    const choice = response.choices?.[0]?.message || {};
-    const text = choice.content || choice.reasoning || '';
+    const text = response.choices?.[0]?.message?.content || '';
     // Parse JSON from response (LLMs sometimes wrap in markdown)
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
