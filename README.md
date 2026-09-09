@@ -130,6 +130,21 @@ agentspec run --json
     format: junit
 ```
 
+### Development checks
+
+```bash
+# Release-safe deterministic tests
+npm test
+
+# Verify that failing assertions and regressions are reported as failures
+npm run test:conformance
+
+# Run LLM-judge integration tests with an OpenAI-compatible endpoint
+npm run test:judge -- \
+  --judge-endpoint http://127.0.0.1:11434/v1/chat/completions \
+  --judge-model qwen2.5:7b
+```
+
 ## CLI commands
 
 ```

@@ -1,0 +1,9 @@
+name: "expected diff failure"
+description: "Fixture that must fail to verify regression detection"
+
+tests:
+  - name: "diff detects regression"
+    input: "Success: operation completed"
+    expect:
+      not_contains: "error"
+      contains: "success"
