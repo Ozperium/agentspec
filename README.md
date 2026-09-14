@@ -16,7 +16,7 @@ npm install -g @ozperium/agentspec
 agentspec init
 ```
 
-This creates `agentspec.yaml`:
+This creates `tests/getting-started.yaml`:
 
 ```yaml
 name: "my-agent-tests"
@@ -24,7 +24,7 @@ tests:
   - name: "handles greeting"
     input: "hello"
     expect:
-      contains: "help"
+      contains: "hello"
 ```
 
 Run tests:
@@ -32,6 +32,8 @@ Run tests:
 ```bash
 agentspec run
 ```
+
+The generated test uses AgentSpec's built-in echo mock so it passes immediately. Add `--endpoint https://my-agent.example.com/chat` to run the same suite against your HTTP agent.
 
 ## Assertions for non-deterministic output
 

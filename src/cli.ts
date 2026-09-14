@@ -135,20 +135,22 @@ async function main() {
       }
     }
   } else if (command === 'init') {
-    console.log('Creating agentspec.yaml...');
+    console.log('Creating tests/getting-started.yaml...');
     const { writeFileSync } = await import('fs');
+    const testDir = path.join(process.cwd(), 'tests');
+    fs.mkdirSync(testDir, { recursive: true });
     writeFileSync(
-      path.join(process.cwd(), 'agentspec.yaml'),
+      path.join(testDir, 'getting-started.yaml'),
       `name: "my-agent-tests"
 description: "Tests for my AI agent"
 tests:
   - name: "handles greeting"
     input: "hello"
     expect:
-      contains: "help"
+      contains: "hello"
 `
     );
-    console.log('Created agentspec.yaml');
+    console.log('Created tests/getting-started.yaml');
   } else if (command === 'list') {
     let dir = 'tests';
     if (args[1] === '--dir') dir = args[2];
