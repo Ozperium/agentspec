@@ -27,16 +27,24 @@ export async function runSuite(
     try {
       const output = await agent.run(test.input, suite);
       const durationMs = Date.now() - startTime;
+
+      // prefer adapter-reported latency when present; otherwise use measured wallclock.
+      // duration_ms is always the wrapper wallclock, while max_latency_ms should validate only trusted adapter latency.
+      const resolvedLatencyMs =
+        output.latencyMs === undefined
+          ? durationMs
+          : normalizeAdapterLatency(output.latencyMs);
+
       const hasLLMJudge = test.expect.llm_judge !== undefined;
       const assertions = hasLLMJudge
         ? await evaluateAssertionsAsync(output.text, test.expect, test.input, {
             tokens: output.tokens,
-            latencyMs: durationMs,
+            latencyMs: resolvedLatencyMs,
             toolsCalled: output.toolsCalled,
           })
         : evaluateAssertions(output.text, test.expect, {
             tokens: output.tokens,
-            latencyMs: durationMs,
+            latencyMs: resolvedLatencyMs,
             toolsCalled: output.toolsCalled,
           });
       const passed = assertions.every(a => a.passed);
@@ -62,6 +70,13 @@ export async function runSuite(
   }
 
   return results;
+}
+
+function normalizeAdapterLatency(latencyMs: unknown): number {
+  if (typeof latencyMs !== 'number' || !Number.isFinite(latencyMs) || latencyMs < 0) {
+    throw new Error(`Invalid output.latencyMs: ${String(latencyMs)} (must be a non-negative finite number)`);
+  }
+  return latencyMs;
 }
 
 export async function runAll(

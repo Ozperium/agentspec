@@ -10,7 +10,9 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "node dist/cli.js run --dir tests --ci && node dist/cli.js run --dir examples --ci",
+    "test": "npm run build && node scripts/test-runner-latency.cjs && node dist/cli.js run --dir tests --ci",
+    "test:conformance": "npm run build && node scripts/test-conformance.cjs",
+    "test:judge": "npm run build && node dist/cli.js run --dir integration-tests --ci",
     "prepublishOnly": "tsc"
   },
   "publishConfig": {

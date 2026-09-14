@@ -1,0 +1,28 @@
+name: "expected assertion failures"
+description: "Fixtures that must fail to verify assertion failure reporting"
+
+tests:
+  - name: "contains assertion fails on missing string"
+    input: "hello world greeting"
+    expect:
+      contains: "goodbye"
+
+  - name: "contains_any fails when none present"
+    input: "I love pizza and pasta"
+    expect:
+      contains_any: ["dogs", "cats", "birds"]
+
+  - name: "contains_all fails if any missing"
+    input: "the quick fox jumps over"
+    expect:
+      contains_all: ["quick", "brown", "fox"]
+
+  - name: "regex fails on non-matching output"
+    input: "No errors here at all"
+    expect:
+      regex: "ERR-\\d{5}"
+
+  - name: "not_contains fails when string present"
+    input: "An error occurred in the system"
+    expect:
+      not_contains: "error"
