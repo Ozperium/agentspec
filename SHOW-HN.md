@@ -36,7 +36,7 @@ The current version uses a mock agent for demonstration. To test real agents, yo
 MIT licensed, npm installable, TypeScript.
 
 Repo: https://github.com/Ozperium/agentspec
-npm: https://www.npmjs.com/package/agentspec
+npm: https://www.npmjs.com/package/@ozperium/agentspec
 
 What's on the roadmap:
 - Diff reports (show what changed between passing and failing runs)

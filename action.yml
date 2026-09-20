@@ -25,7 +25,7 @@ runs:
         node-version: '20'
     - name: Install AgentSpec
       shell: bash
-      run: npm install -g agentspec
+      run: npm install -g @ozperium/agentspec
     - name: Run AgentSpec tests
       shell: bash
       run: agentspec run --dir ${{ inputs.test-dir }} ${{ inputs.format == 'junit' && '--junit' || '' }} ${{ inputs.format == 'json' && '--json' || '' }} --ci
