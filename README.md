@@ -9,6 +9,8 @@
 
 AI agents are non-deterministic. When you change a prompt, swap a model, or update a tool, behavior shifts in ways you can't predict. AgentSpec lets you write tests that catch those shifts before they reach production.
 
+New to behavior testing? Read the companion DEV walkthrough: [Testing AI Agents with AgentSpec: Jest for Non-Deterministic Behavior](https://dev.to/pawfromoz/testing-ai-agents-with-agentspec-jest-for-non-deterministic-behavior-55kg).
+
 ## Quick start
 
 ```bash
