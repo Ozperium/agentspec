@@ -128,7 +128,7 @@ agentspec run --json
 ### GitHub Action
 
 ```yaml
-- uses: agentspec/action@v1
+- uses: Ozperium/agentspec@main
   with:
     test-dir: tests
     format: junit
