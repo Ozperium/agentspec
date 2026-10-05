@@ -176,7 +176,7 @@ AgentSpec — Testing framework for AI agents
 
 Usage:
   agentspec run [options]     Run tests
-  agentspec init              Create agentspec.yaml
+  agentspec init              Create tests/getting-started.yaml
   agentspec list              List test suites
   agentspec version           Show version
 
