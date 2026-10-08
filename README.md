@@ -127,12 +127,28 @@ agentspec run --json
 
 ### GitHub Action
 
+Add this workflow to `.github/workflows/agentspec.yml` to run every suite on pull requests and pushes to `main`:
+
 ```yaml
-- uses: Ozperium/agentspec@main
-  with:
-    test-dir: tests
-    format: junit
+name: AgentSpec
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test-agent-behavior:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Ozperium/agentspec@main
+        with:
+          test-dir: tests
+          format: junit
 ```
+
+The action installs AgentSpec and exits non-zero when a suite fails, so no separate Node setup is needed. It runs local/mock suites by default.
 
 ### Development checks
 
