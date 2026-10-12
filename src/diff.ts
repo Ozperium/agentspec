@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { TestResult, RunResult } from './types';
+import { randomUUID } from 'crypto';
+import { TestResult } from './types';
 import { StoredRun, DiffEntry } from './types/diff';
 
 const STORE_DIR = '.agentspec';
@@ -13,31 +14,102 @@ export function ensureStoreDir(): string {
   return dir;
 }
 
-export function saveRun(results: TestResult[]): void {
-  const dir = ensureStoreDir();
-  const timestamp = new Date().toISOString();
-  for (const result of results) {
-    const file = path.join(dir, `${sanitize(result.suite)}__${sanitize(result.test)}.json`);
-    const stored: StoredRun = {
-      test: result.test,
-      suite: result.suite,
-      passed: result.passed,
-      output: result.output || '',
-      timestamp,
-    };
-    fs.writeFileSync(file, JSON.stringify(stored, null, 2));
+export class BaselineError extends Error {
+  constructor(message: string) {
+    super(`Baseline error: ${message}`);
+    this.name = 'BaselineError';
   }
 }
 
-export function loadPreviousRun(suite: string, test: string): StoredRun | null {
-  const dir = ensureStoreDir();
-  const file = path.join(dir, `${sanitize(suite)}__${sanitize(test)}.json`);
-  if (!fs.existsSync(file)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as StoredRun;
-  } catch {
-    return null;
+export function saveRun(results: TestResult[]): void {
+  if (!Array.isArray(results) || results.length === 0) {
+    throw new BaselineError('Only a non-empty, fully passing run can update the baseline');
   }
+  const identities = new Set<string>();
+  const timestamp = new Date().toISOString();
+  const stored: StoredRun[] = [];
+  for (const result of results) {
+    const candidate = isRecord(result) ? result : null;
+    if (!candidate || candidate.passed !== true) {
+      throw new BaselineError('Only a non-empty, fully passing run can update the baseline');
+    }
+    if (hasOwn(candidate, 'timestamp') && !isValidTimestamp(candidate.timestamp)) {
+      throw new BaselineError('invalid result timestamp');
+    }
+    const identity = JSON.stringify([candidate.suite, candidate.test]);
+    if (identities.has(identity)) throw new BaselineError(`Duplicate baseline test: ${candidate.suite} > ${candidate.test}`);
+    identities.add(identity);
+    const row = validateStoredRun({ ...candidate, timestamp }, `result ${identity}`);
+    stored.push(row);
+  }
+  const file = path.join(ensureStoreDir(), 'baseline.json');
+  const temp = `${file}.${randomUUID()}.tmp`;
+  try {
+    fs.writeFileSync(temp, JSON.stringify({ version: 1, timestamp, results: stored }, null, 2), { flag: 'wx' });
+    fs.renameSync(temp, file);
+  } finally {
+    if (fs.existsSync(temp)) fs.unlinkSync(temp);
+  }
+}
+
+function loadBaseline(): StoredRun[] {
+  const file = path.join(process.cwd(), STORE_DIR, 'baseline.json');
+  if (!fs.existsSync(file)) return [];
+  try {
+    const baseline: unknown = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (!isRecord(baseline) || baseline.version !== 1 || !hasOwn(baseline, 'timestamp') || !isValidTimestamp(baseline.timestamp)) {
+      throw new BaselineError('invalid baseline version or timestamp');
+    }
+    if (!Array.isArray(baseline.results) || baseline.results.length === 0) {
+      throw new BaselineError('invalid baseline results');
+    }
+    const identities = new Set<string>();
+    const rows = baseline.results.map((value, index) => {
+      const result = validateStoredRun(value, `result ${index}`);
+      const identity = JSON.stringify([result.suite, result.test]);
+      if (identities.has(identity)) throw new BaselineError('duplicate test identity');
+      identities.add(identity);
+      return result;
+    });
+    return rows;
+  } catch (error) {
+    if (error instanceof BaselineError) {
+      throw new BaselineError(`Cannot read accepted baseline ${file}: ${error.message.replace(/^Baseline error: /, '')}`);
+    }
+    throw new BaselineError(`Cannot read accepted baseline ${file}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function validateStoredRun(value: unknown, label: string): StoredRun {
+  if (!isRecord(value)) throw new BaselineError(`${label} must be an object`);
+  if (typeof value.suite !== 'string' || value.suite.trim() === '') throw new BaselineError(`${label} has an invalid suite identifier`);
+  if (typeof value.test !== 'string' || value.test.trim() === '') throw new BaselineError(`${label} has an invalid test identifier`);
+  if (value.passed !== true) throw new BaselineError(`${label} must be passing`);
+  if (typeof value.output !== 'string') throw new BaselineError(`${label} has an invalid output`);
+  if (!hasOwn(value, 'timestamp') || !isValidTimestamp(value.timestamp)) throw new BaselineError(`${label} has an invalid timestamp`);
+  if (hasOwn(value, 'wake') && typeof value.wake !== 'string') throw new BaselineError(`${label} has an invalid wake value`);
+  return value as unknown as StoredRun;
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+export function loadPreviousRun(suite: string, test: string): StoredRun | null {
+  return loadBaseline().find(result => result.suite === suite && result.test === test) ?? null;
 }
 
 export function computeDiffs(currentResults: TestResult[]): DiffEntry[] {
@@ -139,8 +211,4 @@ function generateDiffSummary(oldOutput: string, newOutput: string, status: strin
   }
 
   return lines.join('\n');
-}
-
-function sanitize(s: string): string {
-  return s.replace(/[^a-zA-Z0-9_-]/g, '_');
 }

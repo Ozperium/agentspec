@@ -1,9 +1,12 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const { spawnSync } = require('node:child_process');
 const { VercelAIAgent } = require('../dist/vercel-agent');
 const { HTTPAgent } = require('../dist/http-agent');
+const { LangChainAgent } = require('../dist/langchain-agent');
 
 const emptySuite = { agent: {} };
+const capturedBodies = [];
 
 async function rejectsWith(promise, pattern) {
   await assert.rejects(promise, error => {
@@ -29,6 +32,9 @@ async function testVercelContracts() {
   assert.equal(output.text, '', 'empty Vercel text is valid');
   assert.equal(output.tokens, 9, 'totalUsage wins for multi-step output');
   assert.deepEqual(output.toolsCalled, ['lookup', 'write'], 'Vercel tools are deduplicated across steps');
+
+  const structured = await new VercelAIAgent({ generate: async () => ({ text: '{\"status\":\"ok\"}', output: { status: 'ok' } }) }).run('input', emptySuite);
+  assert.equal(structured.text, '{\"status\":\"ok\"}', 'a typed structured output must not invalidate the accompanying final text');
 
   const zero = await new VercelAIAgent({
     generate: async () => ({ text: 'zero', usage: { totalTokens: 0 }, toolCalls: [] }),
@@ -101,6 +107,17 @@ async function testVercelContracts() {
 function startServer() {
   const server = http.createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
+    if (url.pathname === '/capture') {
+      let body = '';
+      req.setEncoding('utf8');
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', () => {
+        capturedBodies.push(JSON.parse(body));
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ output: 'captured' }));
+      });
+      return;
+    }
     if (url.pathname === '/slow') {
       setTimeout(() => {
         res.writeHead(200, { 'content-type': 'application/json' });
@@ -123,6 +140,11 @@ function startServer() {
       res.end('plain text');
       return;
     }
+    if (url.pathname === '/malformed-json') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end('{"output":"hello"');
+      return;
+    }
     if (url.pathname === '/missing') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ message: 'not an adapter response' }));
@@ -141,6 +163,11 @@ function startServer() {
     if (url.pathname === '/invalid-usage') {
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ output: 'ok', tokens: 0, usage: { total_tokens: 'bad' } }));
+      return;
+    }
+    if (url.pathname === '/invalid-camel-usage') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ output: 'ok', usage: { inputTokens: '2', outputTokens: 3 } }));
       return;
     }
     if (url.pathname === '/invalid-tools') {
@@ -165,6 +192,20 @@ async function testHttpContracts() {
     assert.deepEqual(empty.toolsCalled, [], 'explicit empty HTTP tools are known');
     assert.equal(empty.latencyMs, 0, 'numeric zero HTTP latency is preserved');
 
+    const capturedDefault = await new HTTPAgent({ endpoint: endpoint('/capture') }).run(
+      'REAL-INPUT',
+      { agent: { input: 'metadata-input' } },
+    );
+    assert.equal(capturedDefault.text, 'captured');
+    assert.equal(capturedBodies.at(-1).input, 'REAL-INPUT', 'suite metadata must not override the default input field');
+
+    const capturedCustom = await new HTTPAgent({ endpoint: endpoint('/capture'), input_field: 'custominput_field' }).run(
+      'REAL-INPUT',
+      { agent: { custominput_field: 'metadata-custom-input' } },
+    );
+    assert.equal(capturedCustom.text, 'captured');
+    assert.equal(capturedBodies.at(-1).custominput_field, 'REAL-INPUT', 'suite metadata must not override a custom input field');
+
     const plain = await new HTTPAgent({ endpoint: endpoint('/text') }).run('input', emptySuite);
     assert.equal(plain.text, 'plain text', 'successful non-JSON text remains supported');
 
@@ -172,9 +213,11 @@ async function testHttpContracts() {
     assert.match(missing.message, /output|response|malformed/i, 'missing JSON output is an error');
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/error-json') }).run('input', emptySuite), /application failed|error/);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/status') }).run('input', emptySuite), /500/);
+    await rejectsWith(new HTTPAgent({ endpoint: endpoint('/malformed-json') }).run('input', emptySuite), /malformed.*JSON/i);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/invalid') }).run('input', emptySuite), /tokens|invalid/);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/invalid-usage') }).run('input', emptySuite), /usage|invalid/);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/invalid-tools') }).run('input', emptySuite), /tools|invalid/);
+    await rejectsWith(new HTTPAgent({ endpoint: endpoint('/invalid-camel-usage') }).run('input', emptySuite), /usage|invalid/);
     await rejectsWith(new HTTPAgent({ endpoint: 'ftp://127.0.0.1:1/invalid' }).run('input', emptySuite), /protocol|http|https/);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/slow'), timeout_ms: 10 }).run('input', emptySuite), /timeout/);
     await rejectsWith(new HTTPAgent({ endpoint: endpoint('/too-large') }).run('input', emptySuite), /10MB|size|large/);
@@ -187,9 +230,86 @@ async function testHttpContracts() {
   }
 }
 
+async function testLangChainContracts() {
+  const good = await new LangChainAgent({
+    executor: { invoke: async ({ input }) => ({ output: `reply:${input}`, intermediateSteps: [{ action: { tool: 'search' } }] }) },
+  }).run('input', emptySuite);
+  assert.equal(good.text, 'reply:input', 'LangChain output text is preserved');
+  assert.deepEqual(good.toolsCalled, ['search'], 'well-formed LangChain tool metadata is preserved');
+
+  const explicitEmptySteps = await new LangChainAgent({
+    executor: { invoke: async () => ({ output: 'ok', intermediateSteps: [] }) },
+  }).run('input', emptySuite);
+  assert.deepEqual(explicitEmptySteps.toolsCalled, [], 'known empty LangChain steps are valid');
+
+  const emptyOutput = await new LangChainAgent({
+    executor: { invoke: async () => ({ output: '' }) },
+  }).run('input', emptySuite);
+  assert.equal(emptyOutput.text, '', 'explicit empty LangChain output is valid');
+
+  const unknownSteps = await new LangChainAgent({
+    executor: { invoke: async () => ({ output: 'ok' }) },
+  }).run('input', emptySuite);
+  assert.equal(Object.prototype.hasOwnProperty.call(unknownSteps, 'toolsCalled'), false, 'unknown LangChain steps stay unknown');
+
+  const configuredField = await new LangChainAgent({
+    outputField: '',
+    executor: { invoke: async () => ({ '': 'configured', output: 'wrong' }) },
+  }).run('input', emptySuite);
+  assert.equal(configuredField.text, 'configured', 'configured outputField is honored exactly');
+
+  await rejectsWith(new LangChainAgent({ executor: { invoke: async () => ({}) } }).run('input', emptySuite), /output|response/);
+  for (const value of [null, 7, false, {}]) {
+    await rejectsWith(
+      new LangChainAgent({ executor: { invoke: async () => ({ output: value }) } }).run('input', emptySuite),
+      /output|string/,
+    );
+  }
+  await rejectsWith(
+    new LangChainAgent({ executor: { invoke: async () => { throw new Error('executor failed'); } } }).run('input', emptySuite),
+    /executor failed/,
+  );
+  await rejectsWith(
+    new LangChainAgent({ timeoutMs: 10, executor: { invoke: () => new Promise(() => {}) } }).run('input', emptySuite),
+    /timeout/,
+  );
+  await rejectsWith(
+    new LangChainAgent({ executor: { invoke: async () => ({ output: 'bad', intermediateSteps: null }) } }).run('input', emptySuite),
+    /intermediateSteps|steps/,
+  );
+  await rejectsWith(
+    new LangChainAgent({ executor: { invoke: async () => ({ output: 'bad', intermediateSteps: [{}] }) } }).run('input', emptySuite),
+    /step|action|tool/i,
+  );
+  await rejectsWith(
+    new LangChainAgent({ executor: { invoke: async () => ({ output: 'bad', intermediateSteps: [{ action: { tool: 7 } }] }) } }).run('input', emptySuite),
+    /tool|string/,
+  );
+
+  const childSource = `
+    const { LangChainAgent } = require(${JSON.stringify(require.resolve('../dist/langchain-agent'))});
+    new LangChainAgent({
+      timeoutMs: 60000,
+      executor: { invoke: async () => ({ output: 'fast' }) },
+    }).run('input', { agent: {} }).then(
+      () => { process.exitCode = 0; },
+      error => { console.error(error); process.exitCode = 1; },
+    );
+  `;
+  const child = spawnSync(process.execPath, ['-e', childSource], {
+    encoding: 'utf8',
+    timeout: 2000,
+  });
+  assert.equal(child.error, undefined, `fast LangChain child process must exit before its 60000ms timeout: ${child.error || child.stderr}`);
+  assert.equal(child.status, 0, `fast LangChain child process must succeed: ${child.stderr}`);
+}
+
 async function testCurrentSdkIfRequested() {
   const verifyDir = process.env.AGENTSPEC_AI_VERIFY_DIR;
-  if (!verifyDir) return;
+  if (!verifyDir) {
+    if (process.argv.includes('--ai-sdk')) throw new Error('Set AGENTSPEC_AI_VERIFY_DIR to an isolated directory containing the ai package');
+    return;
+  }
 
   const { pathToFileURL } = require('node:url');
   const ai = await import(pathToFileURL(require('node:path').join(verifyDir, 'node_modules/ai/dist/index.js')).href);
@@ -197,7 +317,7 @@ async function testCurrentSdkIfRequested() {
   const model = new testApi.MockLanguageModelV4({
     doGenerate: {
       content: [{ type: 'text', text: 'sdk output' }],
-      finishReason: 'stop',
+      finishReason: { unified: 'stop', raw: 'stop' },
       usage: {
         inputTokens: { total: 2, noCache: 2, cacheRead: 0, cacheWrite: 0 },
         outputTokens: { total: 3, text: 3, reasoning: 0 },
@@ -220,7 +340,7 @@ async function testCurrentSdkIfRequested() {
         { type: 'text-end', id: 'text-1' },
         {
           type: 'finish',
-          finishReason: 'stop',
+          finishReason: { unified: 'stop', raw: 'stop' },
           usage: {
             inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
             outputTokens: { total: 2, text: 2, reasoning: 0 },
@@ -240,6 +360,7 @@ async function testCurrentSdkIfRequested() {
 (async () => {
   await testVercelContracts();
   await testHttpContracts();
+  await testLangChainContracts();
   await testCurrentSdkIfRequested();
   console.log('Adapter contract checks passed');
 })().catch(error => {

@@ -65,7 +65,7 @@ function validateTest(value: unknown, context: string): void {
   }
 }
 
-function validateExpect(expect: Record<string, unknown>, context: string): void {
+export function validateExpect(expect: Record<string, unknown>, context: string): void {
   if (Object.keys(expect).length === 0) {
     throw new Error(`Invalid ${context}: expect must contain at least one assertion`);
   }
@@ -101,6 +101,9 @@ function validateExpect(expect: Record<string, unknown>, context: string): void 
   }
   if (expect.min_confidence !== undefined && expect.semantically_similar === undefined) {
     throw new Error(`Invalid ${context}: min_confidence requires semantically_similar`);
+  }
+  if (!Object.keys(expect).some(key => key !== 'min_confidence' && key !== 'json_value' && expect[key] !== undefined)) {
+    throw new Error(`Invalid ${context}: expect must contain at least one effective assertion`);
   }
 }
 

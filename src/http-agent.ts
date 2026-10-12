@@ -10,6 +10,7 @@ type JSONRecord = Record<string, unknown>;
 type RawResponse = {
   statusCode: number;
   body: string;
+  contentType: string;
 };
 
 export interface HTTPAgentConfig {
@@ -32,7 +33,7 @@ export class HTTPAgent implements AgentRunner {
     const inputField = this.config.input_field ?? 'input';
 
     try {
-      const body = JSON.stringify({ [inputField]: input, ...(suite.agent || {}) });
+      const body = JSON.stringify({ ...(suite.agent || {}), [inputField]: input });
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         ...this.config.headers,
@@ -47,6 +48,9 @@ export class HTTPAgent implements AgentRunner {
       try {
         decoded = JSON.parse(response.body);
       } catch {
+        if (/\b(?:application\/json|[^\s;]+\+json)\b/i.test(response.contentType)) {
+          throw new Error('malformed JSON response from agent endpoint');
+        }
         // A successful non-JSON response is a valid plain-text adapter response.
         return { text: response.body };
       }
@@ -115,6 +119,7 @@ export class HTTPAgent implements AgentRunner {
             res.on('end', () => {
               succeed({
                 statusCode: res.statusCode ?? 0,
+                contentType: res.headers['content-type'] ?? '',
                 body: Buffer.concat(chunks).toString('utf8'),
               });
             });
@@ -168,7 +173,7 @@ function readTokens(value: JSONRecord): number | undefined {
   if (!hasOwn(value, 'usage')) return explicit;
   const usage = value.usage;
   if (!isRecord(usage)) throw new Error('invalid usage: expected an object');
-  const fields = ['total_tokens', 'totalTokens', 'input_tokens', 'output_tokens', 'prompt_tokens', 'completion_tokens'] as const;
+  const fields = ['total_tokens', 'totalTokens', 'input_tokens', 'output_tokens', 'inputTokens', 'outputTokens', 'prompt_tokens', 'completion_tokens'] as const;
   for (const field of fields) {
     if (hasOwn(usage, field)) validateToken(usage[field], `usage.${field}`);
   }

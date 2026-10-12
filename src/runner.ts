@@ -17,15 +17,18 @@ export interface AgentOutput {
 
 export async function runSuite(
   suitePath: string,
-  agent: AgentRunner
+  agent: AgentRunner,
+  filter?: RegExp
 ): Promise<TestResult[]> {
   const suite = loadTestSuite(suitePath);
   const results: TestResult[] = [];
 
   for (const test of suite.tests) {
+    if (filter && !filter.test(test.name) && !filter.test(suite.name)) continue;
     const startTime = Date.now();
     try {
       const output = await agent.run(test.input, suite);
+      if (!output || typeof output.text !== 'string') throw new Error('Agent output.text must be a string');
       const durationMs = Date.now() - startTime;
 
       // prefer adapter-reported latency when present; otherwise use measured wallclock.
@@ -85,18 +88,17 @@ export async function runAll(
   filter?: string | null
 ): Promise<RunResult> {
   const suites = findTestSuites(dir);
+  if (suites.length === 0) throw new Error(`No test suites found in ${dir}`);
+  const pattern = filter ? new RegExp(filter) : undefined;
   const allResults: TestResult[] = [];
   const startTime = Date.now();
 
   for (const suitePath of suites) {
-    let suiteResults = await runSuite(suitePath, agent);
-    if (filter) {
-      const re = new RegExp(filter);
-      suiteResults = suiteResults.filter(r => re.test(r.test) || re.test(r.suite));
-    }
+    const suiteResults = await runSuite(suitePath, agent, pattern);
     allResults.push(...suiteResults);
   }
 
+  if (allResults.length === 0) throw new Error('No tests matched the selected suites/filter');
   const passed = allResults.filter(r => r.passed).length;
   const failed = allResults.length - passed;
 

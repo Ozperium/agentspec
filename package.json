@@ -1,6 +1,6 @@
 {
   "name": "@ozperium/agentspec",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Testing framework for AI agents — Jest for non-deterministic AI behavior",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,10 +10,14 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "npm run build && node scripts/test-runner-latency.cjs && node dist/cli.js run --dir tests --ci",
+    "test": "npm run build && node scripts/test-runner-latency.cjs && node scripts/test-contract-hardening.cjs && node scripts/test-adapters.cjs && node scripts/test-workflow.cjs && node scripts/test-runner-selection.cjs && node scripts/test-cli.cjs && node scripts/test-watch.cjs && node scripts/test-action.cjs && node dist/cli.js run --dir tests --mock --ci",
     "test:conformance": "npm run build && node scripts/test-conformance.cjs",
-    "test:judge": "npm run build && node dist/cli.js run --dir integration-tests --ci",
-    "prepublishOnly": "tsc"
+    "test:judge": "npm run build && node dist/cli.js run --dir integration-tests --mock --ci",
+    "test:package": "npm run build && node scripts/test-package.cjs",
+    "test:live": "npm run build && node scripts/test-live.cjs",
+    "test:ai-sdk": "npm run build && node scripts/test-adapters.cjs --ai-sdk",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm test && npm run test:conformance && npm run test:package"
   },
   "publishConfig": {
     "access": "public"
@@ -52,7 +56,9 @@
   },
   "files": [
     "dist/",
-    "action.yml",
+    "examples/ollama-agent.cjs",
+    "examples/ollama-tests/",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],

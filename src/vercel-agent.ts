@@ -14,7 +14,7 @@ type ToolCall = { toolName: string };
 
 type VercelResult = {
   text?: Awaitable<string>;
-  output?: Awaitable<string>;
+  output?: Awaitable<unknown>;
   usage?: Awaitable<TokenUsage | undefined>;
   totalUsage?: Awaitable<TokenUsage | undefined>;
   toolCalls?: Awaitable<ToolCall[]>;
@@ -93,7 +93,7 @@ async function normalizeResult(result: Record<string, unknown>): Promise<{
     if (typeof value !== 'string') throw new Error('invalid text: expected a string');
     text = value;
   }
-  if ('output' in result) {
+  if (text === undefined && 'output' in result) {
     const value = await result.output;
     if (typeof value !== 'string') throw new Error('invalid output: expected a string');
     text ??= value;

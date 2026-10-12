@@ -1,5 +1,6 @@
 import { TestExpect, AssertionResult } from '../types';
 import { llmJudge, LLMJudgeConfig } from '../llm-judge';
+import { validateExpect } from '../loader';
 
 // Global LLM judge config (can be set via CLI or env)
 let globalLLMJudgeConfig: LLMJudgeConfig | undefined;
@@ -12,7 +13,7 @@ export function getLLMJudgeConfig(): LLMJudgeConfig | undefined {
   return globalLLMJudgeConfig;
 }
 
-export function evaluateAssertions(
+function evaluateSynchronousAssertions(
   output: string,
   expect: TestExpect,
   metadata?: { tokens?: number; latencyMs?: number; toolsCalled?: string[] }
@@ -204,6 +205,19 @@ export function evaluateAssertions(
   return results;
 }
 
+export function evaluateAssertions(
+  output: string,
+  expect: TestExpect,
+  metadata?: { tokens?: number; latencyMs?: number; toolsCalled?: string[] }
+): AssertionResult[] {
+  validateExpect(expect as Record<string, unknown>, 'expectations');
+  const results = evaluateSynchronousAssertions(output, expect, metadata);
+  if (expect.llm_judge !== undefined) {
+    results.push({ assertion: 'llm_judge', passed: false, message: 'Use evaluateAssertionsAsync for llm_judge' });
+  }
+  return results;
+}
+
 // Async version that supports llm_judge assertion
 export async function evaluateAssertionsAsync(
   output: string,
@@ -211,7 +225,8 @@ export async function evaluateAssertionsAsync(
   input: string,
   metadata?: { tokens?: number; latencyMs?: number; toolsCalled?: string[] }
 ): Promise<AssertionResult[]> {
-  const results = evaluateAssertions(output, expect, metadata);
+  validateExpect(expect as Record<string, unknown>, 'expectations');
+  const results = evaluateSynchronousAssertions(output, expect, metadata);
 
   if (expect.llm_judge !== undefined) {
     try {
@@ -245,6 +260,7 @@ function extractJsonPath(obj: unknown, path: string): unknown {
   for (const part of parts) {
     if (current === null || current === undefined) return undefined;
     if (typeof current !== 'object') return undefined;
+    if (!Object.prototype.hasOwnProperty.call(current, part)) return undefined;
     current = (current as Record<string, unknown>)[part];
   }
   return current;
