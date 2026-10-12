@@ -8,7 +8,7 @@ import { AgentRunner, AgentOutput, TestSuite } from './runner';
  *   import { AgentExecutor } from 'langchain/agents';
  *   
  *   const executor = new AgentExecutor({ ... });
- *   const agent = new LangChainAgent(executor);
+ *   const agent = new LangChainAgent({ executor });
  *   const { runAll } = require('@ozperium/agentspec');
  *   const result = await runAll('./tests', agent);
  * 
@@ -35,39 +35,57 @@ export class LangChainAgent implements AgentRunner {
 
   async run(input: string, suite: TestSuite): Promise<AgentOutput> {
     const startTime = Date.now();
-    const outputField = this.config.outputField || 'output';
-    const timeoutMs = this.config.timeoutMs || 60000;
+    const outputField = this.config.outputField ?? 'output';
+    const stepsField = this.config.intermediateStepsField ?? 'intermediateSteps';
+    const timeoutMs = this.config.timeoutMs ?? 60000;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const result = await Promise.race([
-        this.config.executor.invoke({ input }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`LangChain agent timeout after ${timeoutMs}ms`)), timeoutMs)
-        ),
-      ]);
+      const operation = Promise.resolve().then(() => this.config.executor.invoke({ input }));
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`LangChain agent timeout after ${timeoutMs}ms`)), timeoutMs);
+      });
+      const result = await Promise.race([operation, timeout]);
 
-      const text = String(result[outputField] || '');
+      if (result === null || typeof result !== 'object' || Array.isArray(result)) {
+        throw new Error('LangChain agent response must be an object');
+      }
+      if (!Object.prototype.hasOwnProperty.call(result, outputField) || typeof result[outputField] !== 'string') {
+        throw new Error(`LangChain agent response field "${outputField}" must be a string`);
+      }
+      const text = result[outputField];
       const latencyMs = Date.now() - startTime;
+      const output: AgentOutput = { text, latencyMs };
 
-      // Extract tool calls from intermediate steps if available
-      const steps = result[this.config.intermediateStepsField || 'intermediateSteps'] as Array<Record<string, unknown>> | undefined;
-      const toolsCalled: string[] = [];
-      if (Array.isArray(steps)) {
-        for (const step of steps) {
-          const action = step.action || step.message_log;
-          if (action && typeof action === 'object' && 'tool' in action) {
-            toolsCalled.push(String((action as Record<string, unknown>).tool));
-          }
+      if (Object.prototype.hasOwnProperty.call(result, stepsField)) {
+        const rawSteps = result[stepsField];
+        if (!Array.isArray(rawSteps)) {
+          throw new Error(`LangChain agent ${stepsField} must be an array`);
         }
+        const toolsCalled: string[] = [];
+        for (const step of rawSteps) {
+          if (step === null || typeof step !== 'object' || Array.isArray(step)) {
+            throw new Error(`LangChain agent ${stepsField} contains an invalid step`);
+          }
+          const stepRecord = step as Record<string, unknown>;
+          const action = stepRecord.action ?? stepRecord.message_log;
+          if (action === null || typeof action !== 'object' || Array.isArray(action)) {
+            throw new Error(`LangChain agent ${stepsField} contains an invalid action`);
+          }
+          const actionRecord = action as Record<string, unknown>;
+          if (!Object.prototype.hasOwnProperty.call(actionRecord, 'tool') || typeof actionRecord.tool !== 'string') {
+            throw new Error(`LangChain agent ${stepsField} contains an invalid tool`);
+          }
+          toolsCalled.push(actionRecord.tool);
+        }
+        output.toolsCalled = toolsCalled;
       }
 
-      return {
-        text,
-        latencyMs,
-        toolsCalled,
-      };
+      return output;
     } catch (e) {
       throw new Error(`LangChain agent error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
     }
   }
 }

@@ -6,3 +6,6 @@ dist/
 !src/**
 .env
 .DS_Store
+.agentspec/*
+!.agentspec/baseline.json
+*.tgz

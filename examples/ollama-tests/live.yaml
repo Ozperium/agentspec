@@ -1,0 +1,18 @@
+name: local-model-smoke
+description: Real local model calls, not mock fixtures
+tests:
+  - name: follows a simple output contract
+    input: Reply with only the lowercase word hello
+    expect:
+      contains: hello
+      max_tokens: 128
+      max_latency_ms: 60000
+  - name: produces valid JSON
+    input: Return only a JSON object with a single key status and value ok. No markdown.
+    expect:
+      json_path: status
+      json_value: ok
+  - name: answers a factual question
+    input: What is the capital of Poland? Reply in one short sentence.
+    expect:
+      llm_judge: The answer must correctly identify Warsaw as the capital of Poland.

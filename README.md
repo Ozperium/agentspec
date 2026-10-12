@@ -1,219 +1,254 @@
 # AgentSpec
 
-> Testing framework for AI agents — Jest for non-deterministic AI behavior
+> Small, local regression contracts for AI applications.
 
 [![npm version](https://img.shields.io/npm/v/@ozperium/agentspec)](https://www.npmjs.com/package/@ozperium/agentspec)
-[![npm downloads](https://img.shields.io/npm/dw/@ozperium/agentspec)](https://www.npmjs.com/package/@ozperium/agentspec)
 [![GitHub](https://img.shields.io/github/stars/Ozperium/agentspec)](https://github.com/Ozperium/agentspec)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-AI agents are non-deterministic. When you change a prompt, swap a model, or update a tool, behavior shifts in ways you can't predict. AgentSpec lets you write tests that catch those shifts before they reach production.
+Write YAML expectations, connect your **actual agent**, and fail the build when its output violates a contract. Runs locally; no AgentSpec account or hosted dashboard is required. Only `yaml` is a runtime dependency.
 
-New to behavior testing? Read the companion DEV walkthrough: [Testing AI Agents with AgentSpec: Jest for Non-Deterministic Behavior](https://dev.to/pawfromoz/testing-ai-agents-with-agentspec-jest-for-non-deterministic-behavior-55kg).
+AgentSpec is a single-run output/metadata test runner, not a statistical benchmark or a full agent-trajectory evaluator. A passing suite proves only the checks you wrote against the agent you selected.
 
 ## Quick start
 
 ```bash
-npm install -g @ozperium/agentspec
-agentspec init
+npm install --save-dev @ozperium/agentspec
+npx agentspec init
+npx agentspec run --mock
 ```
 
-This creates `tests/getting-started.yaml`:
+This creates `tests/getting-started.yaml`. **`--mock` is an explicitly labeled echo demo, not an evaluation of your application.** `init` refuses to overwrite an existing file.
 
 ```yaml
-name: "my-agent-tests"
+name: my-agent-tests
 tests:
-  - name: "handles greeting"
-    input: "hello"
+  - name: handles greeting
+    input: hello
     expect:
-      contains: "hello"
+      contains: hello
 ```
 
-Run tests:
+Connect your real HTTP agent:
 
 ```bash
-agentspec run
+npx agentspec run --endpoint http://127.0.0.1:3000/chat
 ```
 
-The generated test uses AgentSpec's built-in echo mock so it passes immediately. Add `--endpoint https://my-agent.example.com/chat` to run the same suite against your HTTP agent.
+Choose exactly one of `--endpoint`, `--agent`, or `--mock`. There is no implicit mock fallback. Failed tests exit with code 1, with or without `--ci`. Missing suites and filters matching zero tests are errors, not green runs.
 
-## Assertions for non-deterministic output
+## HTTP contract
 
-AgentSpec provides assertions designed for AI output, not just string equality:
+AgentSpec POSTs `{ "input": "hello" }`. Optional `suite.agent` properties are forwarded in the request; they do not automatically select a model or adapter.
+
+Return JSON with a string `output` (alternatively `text` or `response`):
+
+```json
+{
+  "output": "hello from the real agent",
+  "tokens": 42,
+  "latency_ms": 120,
+  "tools_called": ["lookup_account"]
+}
+```
+
+Successful plain-text responses are also supported. Non-2xx responses and malformed output fail the test. An empty output string and zero tokens are valid values. Do not return an error object as a successful agent response.
+
+- `max_tokens` requires known token usage; missing metadata fails the assertion.
+- `tool_called` requires known tool names; missing metadata fails the assertion. An empty array means no tool was called.
+- Latency uses the adapter's reported `latency_ms` when present, otherwise the measured call time. The result's `duration_ms` remains the measured time.
+- For bearer authentication, set `AGENTSPEC_AGENT_TOKEN` in your environment. Never put a secret into YAML or a command line.
+- Use a custom `HTTPAgent` in a trusted module when you need custom headers or input/output field names.
+
+## Vercel AI SDK and custom agents
+
+The CLI can load a **trusted CommonJS module** exporting an `AgentRunner`, directly or as `agent`/`default`. Its `run(input, suite)` method returns `{ text, tokens?, latencyMs?, toolsCalled? }`. Module code executes with your user's permissions; only load code you trust.
+
+For Vercel AI SDK, install your application's SDK/provider dependencies and export the adapter. AI SDK 7 requires Node >=22; the verified integration uses Node 24:
+
+```bash
+npm install ai @ai-sdk/openai
+```
+
+```js
+// agentspec-agent.cjs
+const { VercelAIAgent } = require('@ozperium/agentspec');
+
+module.exports = new VercelAIAgent({
+  generate: async (input) => {
+    const { generateText } = await import('ai');
+    const { openai } = await import('@ai-sdk/openai');
+    return generateText({ model: openai('gpt-4o-mini'), prompt: input });
+  },
+});
+```
+
+```bash
+npx agentspec run --agent ./agentspec-agent.cjs --json
+```
+
+Keep your provider key in its standard environment variable. The adapter consumes the final text, usage and tool names returned by the SDK, including step tool names when supplied. `tool_called` does **not** validate tool arguments, execution order, side effects, or authorization. A timeout stops waiting; it does not prove an upstream model call was cancelled.
+
+The exported `runAll`, `HTTPAgent`, `LangChainAgent`, and `VercelAIAgent` can also be used programmatically.
+
+## Assertions
 
 ```yaml
+name: support-contracts
 tests:
-  - name: "handles expired token"
-    input: "my token expired"
+  - name: explains expired token recovery
+    input: my token expired
     expect:
-      contains: "refresh token"
-      not_contains: "I don't know"
+      contains: refresh token
+      not_contains: send your password
       max_latency_ms: 5000
+      max_tokens: 500
 
-  - name: "routes billing question"
-    input: "I want a refund"
+  - name: uses billing tool
+    input: I want a refund
     expect:
-      contains_any: ["billing", "refund", "support"]
-      tool_called: "transfer_to_billing"
+      contains_any: [billing, refund, support]
+      tool_called: transfer_to_billing
 
-  - name: "response is semantically on-topic"
-    input: "how do I reset my password?"
+  - name: structured profile
+    input: get the test user's profile
     expect:
-      semantically_similar: "reset password credentials"
-      min_confidence: 0.5
+      json_path: data.email
+      json_value: user@example.com
 
-  - name: "JSON output has correct structure"
-    input: "get user profile"
+  - name: reports a structured error code
+    input: simulate an error
     expect:
-      json_path: "data.email"
-      json_value: "user@example.com"
-
-  - name: "matches error code pattern"
-    input: "simulate error"
-    expect:
-      regex: "ERR-\\d{5}"
+      regex: 'ERR-\d{5}'
 ```
 
-## LLM-as-judge
+Other supported checks: `contains_all`, `semantically_similar`, and `llm_judge`.
 
-Use a local model to evaluate response quality — no API costs, full privacy:
+**`semantically_similar` is a deterministic word-overlap heuristic, not embedding similarity.** Its `min_confidence` option is an overlap threshold, not calibrated confidence. Prefer concrete checks or a validated judge for semantic requirements.
+
+Malformed suites, empty expectations, unsupported assertion keys and misspelled checks fail validation. AgentSpec does not silently ignore an assertion it cannot implement.
+
+## Local LLM judge
+
+Select the real agent and the judge separately:
 
 ```bash
-# Use local Ollama as judge
-agentspec run --judge-endpoint http://127.0.0.1:11434/v1/chat/completions --judge-model qwen2.5:7b
+npx agentspec run --agent ./agentspec-agent.cjs \
+  --judge-endpoint http://127.0.0.1:11434/v1/chat/completions \
+  --judge-model llama3.2:3b
 ```
 
 ```yaml
+name: response-quality
 tests:
-  - name: "response is helpful"
-    input: "How do I reset my password?"
+  - name: explains password recovery
+    input: How do I reset my password?
     expect:
-      llm_judge: "The response should explain how to reset a password"
+      llm_judge: The response must describe password recovery without requesting the user's password.
 ```
 
-## Behavior diff reports
+The judge must return valid JSON with Boolean `passed`, finite `score` in `[0,1]`, and a non-empty `reasoning` string. Malformed verdicts, wrong field types, unavailable services and missing final output fail closed. The judge's Boolean verdict determines pass/fail; its score is reported, not a separate acceptance threshold.
 
-AgentSpec stores the last passing output per test. When behavior changes, you see exactly what shifted:
+A local judge avoids sending grading data to an external service, **only if your selected agent and judge endpoints are both local**. Judge quality remains model/rubric dependent; calibrate against labeled examples. This is not a guarantee of factuality or safety.
 
-```
-⚠️ REGRESSION support agent > handles expired token
-  ⚠  Behavior REGRESSED — test was passing, now failing
-  + added: your, token, has, expired, please, contact, support
-  - removed: you, need, refresh, the, token, settings, security
-```
+`evaluateAssertions` validates checks and refuses to pretend it ran an LLM judge; use `evaluateAssertionsAsync` for judge checks.
 
-## Testing real agents
+## Accepted baselines and regression diffs
 
-Use `--endpoint` to test any HTTP-accessible agent:
+Accept a reviewed, fully passing run explicitly:
 
 ```bash
-agentspec run --endpoint https://my-agent.example.com/chat
+npx agentspec run --endpoint http://127.0.0.1:3000/chat --update-baseline
 ```
 
-AgentSpec POSTs `{input: "..."}` to your endpoint and expects `{output: "..."}` in the response.
-
-## CI/CD integration
+This atomically writes `.agentspec/baseline.json`. Normal runs never overwrite it, even when they pass. Failed runs cannot be accepted. A filtered or watch-mode run cannot replace the complete baseline.
 
 ```bash
-# Exit code 1 on failure
-agentspec run --ci
+npx agentspec run --endpoint http://127.0.0.1:3000/chat --json
+```
 
-# JUnit XML for CI systems
-agentspec run --junit > results.xml
+JSON includes `diffs`. Repeated failing runs continue to show a regression against the accepted version, rather than replacing the reference with a failed output. Output changes that still satisfy all assertions are reported as changes; they are not automatically failures.
 
-# JSON output
-agentspec run --json
+Commit the accepted baseline with your contracts if you want the same reference in CI. Use only sanitized fixtures: baselines contain outputs and assertion diagnostics. Old per-test `.agentspec/*.json` snapshots from 0.1.x are not imported as accepted baselines; run a reviewed acceptance command to migrate. Corrupt accepted baselines are errors, not silently discarded history.
+
+## CI and reports
+
+```bash
+npx agentspec run --agent ./agentspec-agent.cjs --ci
+npx agentspec run --agent ./agentspec-agent.cjs --junit > results.xml
+npx agentspec run --agent ./agentspec-agent.cjs --json > results.json
 ```
 
 ### GitHub Action
 
-Add this workflow to `.github/workflows/agentspec.yml` to run every suite on pull requests and pushes to `main`:
+The action builds **its checked-out AgentSpec revision**, not whatever happens to be latest on npm. Supply a real endpoint or a trusted module; there is no default mock.
 
 ```yaml
-name: AgentSpec
-
+name: Agent contracts
 on:
   pull_request:
   push:
     branches: [main]
-
 jobs:
-  test-agent-behavior:
+  evaluate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Start your application's test server in a preceding step.
       - uses: Ozperium/agentspec@main
         with:
           test-dir: tests
+          agent-endpoint: http://127.0.0.1:3000/chat
           format: junit
+        env:
+          AGENTSPEC_AGENT_TOKEN: ${{ secrets.AGENT_TEST_TOKEN }}
 ```
 
-The action installs AgentSpec and exits non-zero when a suite fails, so no separate Node setup is needed. It runs local/mock suites by default.
+Pin the action to a reviewed commit or release tag for reproducibility. For a module-based agent, install your application's dependencies before the action using the same Node version, then supply `agent-module: ./agentspec-agent.cjs`. The action defaults to Node 24; override `node-version` only to a version supported by your application and SDK. Only use `mock: 'true'` for an intentional echo demo. `fail-on-failure: 'false'` is explicitly non-gating.
 
-### Development checks
+## Runnable local-model example
+
+From a source checkout, with Ollama running and a local model already installed:
 
 ```bash
-# Release-safe deterministic tests
-npm test
-
-# Verify that failing assertions and regressions are reported as failures
-npm run test:conformance
-
-# Run LLM-judge integration tests with an OpenAI-compatible endpoint
-npm run test:judge -- \
-  --judge-endpoint http://127.0.0.1:11434/v1/chat/completions \
-  --judge-model qwen2.5:7b
+npm ci
+AGENTSPEC_MODEL=llama3.2:3b npm run test:live
 ```
 
-## CLI commands
+This invokes the real local model for three checks and verifies a deliberately wrong criterion is rejected by the judge. It is opt-in, not part of deterministic CI. Change `AGENTSPEC_MODEL`, `AGENTSPEC_JUDGE_MODEL`, `AGENTSPEC_OLLAMA_ENDPOINT`, or `AGENTSPEC_JUDGE_ENDPOINT` for your local setup.
 
+The packaged `examples/ollama-agent.cjs` and `examples/ollama-tests/live.yaml` are also runnable with the installed CLI.
+
+## Development verification
+
+```bash
+npm ci
+npm test                  # Deterministic regression and boundary tests
+npm run test:conformance   # Requires all six deliberately failing fixtures
+npm run test:package       # Pack, clean install, real HTTP, regression, JSON/JUnit
+npm run test:live          # Optional real local agent and judge
 ```
-agentspec run [--dir tests] [--ci] [--json] [--junit] [--watch] [--test "pattern"]
-agentspec init
-agentspec list [--dir tests]
-agentspec version
+
+`npm pack` builds current sources. Publishing runs deterministic, conformance and clean-package gates first.
+
+### Reproduce the Vercel SDK integration check
+
+The adapter is exercised against `ai@7.0.137` using the SDK's own `MockLanguageModelV4` for `generateText` and `streamText`. This verifies SDK plumbing, not real model quality. The check also runs in CI on Node 24 without adding an AI SDK runtime dependency to AgentSpec.
+
+```bash
+SDK_DIR="$(mktemp -d)"
+npm install --prefix "$SDK_DIR" ai@7.0.137 --ignore-scripts --no-save --no-package-lock
+AGENTSPEC_AI_VERIFY_DIR="$SDK_DIR" npm run test:ai-sdk
 ```
 
-## Why AgentSpec?
+## Scope and limitations
 
-| Problem | AgentSpec |
-|---------|-----------|
-| Agent behavior changes with model updates | Regression tests catch the shift |
-| "It worked yesterday" debugging | Diff reports show what changed |
-| Manual testing before each deploy | CI/CD gates with `--ci` exit codes |
-| Jest/Vitest don't handle non-deterministic output | `contains_any`, `regex`, `llm_judge`, `semantically_similar` |
-| No CI integration for AI features | GitHub Action + JUnit XML |
-
-## Roadmap
-
-- [x] YAML test definitions
-- [x] Core assertions (contains, not_contains, contains_any, contains_all, regex)
-- [x] Metadata assertions (max_latency_ms, max_tokens, tool_called)
-- [x] Semantic similarity (word overlap)
-- [x] JSON path assertions
-- [x] CLI with run/init/list commands
-- [x] CI mode with exit codes
-- [x] JUnit XML and JSON output
-- [x] Test filtering
-- [x] GitHub Action
-- [x] **Behavior diff reports** — see what changed between runs
-- [x] **LLM-as-judge** — use a local model (Ollama) to evaluate output quality
-- [x] **HTTP agent adapter** — test real agents via `--endpoint`
-- [ ] Auto-test generation from conversation history
-- [ ] Python agent support
-- [ ] Watch mode with file watcher
-- [ ] Web dashboard
-- [ ] GitHub PR integration (comment on PRs with behavior diffs)
-
-## Part of the AI Dev Workflow Stack
-
-AgentSpec is one tool in a three-part observability stack for AI development:
-
-| Tool | What it does | Install |
-|------|-------------|---------|
-| **AgentSpec** | Test AI agent behavior — catch regressions before production | `npm i -g @ozperium/agentspec` |
-| **[AICostTracker](https://github.com/Ozperium/aicost-tracker)** | Track token usage and costs across projects | `npm i -g @ozperium/aicost-tracker` |
-| **[quota](https://github.com/Ozperium/quota)** | Monitor AI rate limits — know what's left before it stops you | `npm i -g @ozperium/quota` |
+- One agent invocation per case, no built-in repeated-trial statistics or calibrated confidence.
+- Tool-name checks, not first-class conversation/trajectory or side-effect verification.
+- Local accepted-output baselines, not a hosted experiment ledger or automatic model/prompt version tracking.
+- Trusted module integration, not a sandbox.
+- `--watch` monitors YAML changes in the selected directory root, serializes reruns and recovers from invalid edits; it is not a recursive project/code watcher.
+- No dashboard, automatic test generation, or PR-comment bot.
 
 ## License
 

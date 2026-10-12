@@ -1,19 +1,39 @@
 name: 'AgentSpec — AI Agent Tests'
-description: 'Run AgentSpec tests for your AI agents in CI'
+description: 'Run explicit AI agent contracts in CI'
 branding:
   icon: 'check-circle'
   color: 'blue'
 inputs:
+  node-version:
+    description: 'Node runtime (AI SDK 7 requires Node >=22)'
+    required: false
+    default: '24'
   test-dir:
     description: 'Directory containing test suites'
     required: false
     default: 'tests'
+  agent-endpoint:
+    description: 'HTTP agent endpoint; choose this, agent-module, or explicit mock'
+    required: false
+  agent-module:
+    description: 'Path to a trusted CommonJS module exporting an AgentRunner'
+    required: false
+  mock:
+    description: 'Explicit demo-only echo agent; never evaluates your application'
+    required: false
+    default: 'false'
+  judge-endpoint:
+    description: 'OpenAI-compatible judge endpoint'
+    required: false
+  judge-model:
+    description: 'Judge model name'
+    required: false
   format:
     description: 'Output format (text, json, junit)'
     required: false
     default: 'junit'
   fail-on-failure:
-    description: 'Exit with error code on test failures'
+    description: 'Fail the workflow on test failures'
     required: false
     default: 'true'
 runs:
@@ -22,11 +42,31 @@ runs:
     - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: '20'
-    - name: Install AgentSpec
+        node-version: ${{ inputs.node-version }}
+    - name: Build this AgentSpec revision
       shell: bash
-      run: npm install -g @ozperium/agentspec
+      run: |
+        npm --prefix "$GITHUB_ACTION_PATH" ci --ignore-scripts
+        npm --prefix "$GITHUB_ACTION_PATH" run build
+    - name: Validate fail-on-failure
+      shell: bash
+      env:
+        AGENTSPEC_FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
+      run: |
+        case "$AGENTSPEC_FAIL_ON_FAILURE" in
+          true|false) ;;
+          *) echo 'AgentSpec: fail-on-failure must be exactly true or false' >&2; exit 1 ;;
+        esac
     - name: Run AgentSpec tests
       shell: bash
-      run: agentspec run --dir ${{ inputs.test-dir }} ${{ inputs.format == 'junit' && '--junit' || '' }} ${{ inputs.format == 'json' && '--json' || '' }} --ci
-      continue-on-error: ${{ inputs.fail-on-failure != 'true' }}
+      env:
+        AGENTSPEC_TEST_DIR: ${{ inputs.test-dir }}
+        AGENTSPEC_AGENT_ENDPOINT: ${{ inputs.agent-endpoint }}
+        AGENTSPEC_AGENT_MODULE: ${{ inputs.agent-module }}
+        AGENTSPEC_MOCK: ${{ inputs.mock }}
+        AGENTSPEC_FORMAT: ${{ inputs.format }}
+        AGENTSPEC_JUDGE_ENDPOINT: ${{ inputs.judge-endpoint }}
+        AGENTSPEC_JUDGE_MODEL: ${{ inputs.judge-model }}
+        AGENTSPEC_FAIL_ON_FAILURE: ${{ inputs.fail-on-failure }}
+      run: node "$GITHUB_ACTION_PATH/scripts/run-action.cjs"
+      continue-on-error: ${{ inputs.fail-on-failure == 'false' }}
