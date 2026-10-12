@@ -8,7 +8,20 @@ fs.mkdirSync(path.join(root, 'tests'));
 const file = path.join(root, 'tests/suite.yaml');
 const good = 'name: watch\ntests:\n  - name: greeting\n    input: hello\n    expect:\n      contains: hello\n';
 fs.writeFileSync(file, good);
-const child = spawn(process.execPath, [path.resolve(__dirname, '../dist/cli.js'), 'run', '--mock', '--watch'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+const marker = path.join(root, 'watch-registered');
+const preload = path.join(root, 'slow-watch.cjs');
+fs.writeFileSync(preload, `
+  const fs = require('node:fs');
+  const nativeWatch = fs.watch.bind(fs);
+  fs.watch = (...args) => {
+    // Emulate slow registration without faking filesystem events or results.
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    const watcher = nativeWatch(...args);
+    fs.writeFileSync(${JSON.stringify(marker)}, 'registered');
+    return watcher;
+  };
+`);
+const child = spawn(process.execPath, ['--require', preload, path.resolve(__dirname, '../dist/cli.js'), 'run', '--mock', '--watch'], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
 let output = '';
 let history = '';
 child.stdout.on('data', data => { output += data; history += data; });
@@ -25,6 +38,7 @@ function waitFor(pattern) {
 (async () => {
   try {
     await waitFor(/Watching for changes/);
+    assert.ok(fs.existsSync(marker), 'watch readiness must be announced only after registration');
     output = '';
     fs.writeFileSync(file, 'name: broken\ntests: []\n');
     await waitFor(/Invalid test suite/);

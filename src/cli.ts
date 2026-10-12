@@ -14,8 +14,6 @@ async function runWithWatch(
   // First run
   await runTests(dir, agent, testFilter);
 
-  console.log('\n🔍 Watching for changes in %s… (press Ctrl+C to stop)\n', dir);
-
   const testDir = path.resolve(dir);
   let running = false;
   let pending = false;
@@ -42,6 +40,7 @@ async function runWithWatch(
       void rerun();
     }
   });
+  console.log('\n🔍 Watching for changes in %s… (press Ctrl+C to stop)\n', dir);
 }
 
 async function runTests(
