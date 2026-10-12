@@ -89,36 +89,66 @@ export function evaluateAssertions(
     }
   }
 
-  if (expect.max_latency_ms !== undefined && metadata?.latencyMs !== undefined) {
-    const passed = metadata.latencyMs <= expect.max_latency_ms;
+  if (expect.max_latency_ms !== undefined) {
+    const latency = metadata?.latencyMs;
+    const validThreshold = isFiniteNonNegative(expect.max_latency_ms);
+    const validMetadata = isFiniteNonNegative(latency);
+    const passed = validThreshold && validMetadata && latency <= expect.max_latency_ms;
+    const message = !validThreshold
+      ? `Invalid max_latency_ms expectation: ${String(expect.max_latency_ms)}`
+      : !validMetadata
+        ? `Latency metadata is missing or invalid: ${String(latency)}`
+        : passed
+          ? `Latency ${latency}ms ≤ ${expect.max_latency_ms}ms`
+          : `Latency ${latency}ms > ${expect.max_latency_ms}ms`;
     results.push({
       assertion: 'max_latency_ms',
       passed,
-      message: passed ? `Latency ${metadata.latencyMs}ms ≤ ${expect.max_latency_ms}ms` : `Latency ${metadata.latencyMs}ms > ${expect.max_latency_ms}ms`,
+      message,
       expected: `≤ ${expect.max_latency_ms}ms`,
-      actual: `${metadata.latencyMs}ms`,
+      actual: latency === undefined ? 'missing' : `${String(latency)}ms`,
     });
   }
 
-  if (expect.max_tokens !== undefined && metadata?.tokens !== undefined) {
-    const passed = metadata.tokens <= expect.max_tokens;
+  if (expect.max_tokens !== undefined) {
+    const tokens = metadata?.tokens;
+    const validThreshold = isFiniteNonNegative(expect.max_tokens);
+    const validMetadata = isFiniteNonNegative(tokens);
+    const passed = validThreshold && validMetadata && tokens <= expect.max_tokens;
+    const message = !validThreshold
+      ? `Invalid max_tokens expectation: ${String(expect.max_tokens)}`
+      : !validMetadata
+        ? `Token metadata is missing or invalid: ${String(tokens)}`
+        : passed
+          ? `Tokens ${tokens} ≤ ${expect.max_tokens}`
+          : `Tokens ${tokens} > ${expect.max_tokens}`;
     results.push({
       assertion: 'max_tokens',
       passed,
-      message: passed ? `Tokens ${metadata.tokens} ≤ ${expect.max_tokens}` : `Tokens ${metadata.tokens} > ${expect.max_tokens}`,
+      message,
       expected: `≤ ${expect.max_tokens}`,
-      actual: `${metadata.tokens}`,
+      actual: tokens === undefined ? 'missing' : String(tokens),
     });
   }
 
-  if (expect.tool_called !== undefined && metadata?.toolsCalled !== undefined) {
-    const passed = metadata.toolsCalled.includes(expect.tool_called);
+  if (expect.tool_called !== undefined) {
+    const toolsCalled = metadata?.toolsCalled;
+    const validMetadata = Array.isArray(toolsCalled) && toolsCalled.every(tool => typeof tool === 'string');
+    const passed = validMetadata && toolsCalled.includes(expect.tool_called);
     results.push({
       assertion: 'tool_called',
       passed,
-      message: passed ? `Tool "${expect.tool_called}" was called` : `Tool "${expect.tool_called}" was not called. Called: ${metadata.toolsCalled.join(', ') || 'none'}`,
+      message: !validMetadata
+        ? 'Tool metadata is missing or invalid'
+        : passed
+          ? `Tool "${expect.tool_called}" was called`
+          : `Tool "${expect.tool_called}" was not called. Called: ${toolsCalled.join(', ') || 'none'}`,
       expected: expect.tool_called,
-      actual: passed ? 'called' : `not called (called: ${metadata.toolsCalled.join(', ') || 'none'})`,
+      actual: !validMetadata
+        ? 'missing or invalid'
+        : passed
+          ? 'called'
+          : `not called (called: ${toolsCalled.join(', ') || 'none'})`,
     });
   }
 
@@ -229,4 +259,8 @@ function wordSimilarity(a: string, b: string): number {
     if (wordsB.has(w)) intersection++;
   }
   return (2 * intersection) / (wordsA.size + wordsB.size);
+}
+
+function isFiniteNonNegative(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
