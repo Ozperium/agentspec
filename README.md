@@ -8,6 +8,8 @@
 
 Write YAML expectations, connect your **actual agent**, and fail the build when its output violates a contract. Runs locally; no AgentSpec account or hosted dashboard is required. Only `yaml` is a runtime dependency.
 
+[Read the AgentSpec walkthrough on DEV](https://dev.to/pawfromoz/testing-ai-agents-with-agentspec-jest-for-non-deterministic-behavior-55kg) for a concrete regression-testing example.
+
 AgentSpec is a single-run output/metadata test runner, not a statistical benchmark or a full agent-trajectory evaluator. A passing suite proves only the checks you wrote against the agent you selected.
 
 ## Quick start
