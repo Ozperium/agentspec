@@ -22,6 +22,22 @@ npx agentspec run --mock
 
 This creates `tests/getting-started.yaml`. **`--mock` is an explicitly labeled echo demo, not an evaluation of your application.** `init` refuses to overwrite an existing file.
 
+### First HTTP check
+
+To exercise the real HTTP adapter without provider credentials, start the included local fixture in one terminal:
+
+```bash
+node ./node_modules/@ozperium/agentspec/examples/http-agent.cjs
+```
+
+Then, from the project where `tests/getting-started.yaml` was created, run:
+
+```bash
+npx agentspec run --endpoint http://127.0.0.1:3000/chat
+```
+
+This should pass one case through an actual HTTP request. The fixture is a deterministic local responder, not an AI agent; replace its endpoint with your own application before relying on results.
+
 ```yaml
 name: my-agent-tests
 tests:
