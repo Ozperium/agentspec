@@ -18,7 +18,7 @@ git clone https://github.com/Ozperium/agentspec.git
 cd agentspec
 npm install
 npm run build
-node dist/cli.js run --dir tests
+node dist/cli.js run --dir tests --mock --ci
 ```
 
 ## Project structure
